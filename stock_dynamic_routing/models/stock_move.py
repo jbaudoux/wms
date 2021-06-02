@@ -1,4 +1,5 @@
 # Copyright 2019-2020 Camptocamp (https://www.camptocamp.com)
+# Copyright 2021 Jacques-Etienne Baudoux (BCIM) <je@bcim.be>
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl)
 import uuid
 from collections import defaultdict, namedtuple
@@ -236,13 +237,17 @@ class StockMove(models.Model):
         """
         pickings_to_check_for_emptiness = self.env["stock.picking"]
         move_ids_to_assign_per_location = defaultdict(list)
+        move_ids_to_assign_nonrelocated = []
+        next_moves_to_update = self.browse()
         for move in self:
             routing_rule = routing_details[move].rule
             if not routing_rule.method == "pull":
+                move_ids_to_assign_nonrelocated.append(move.id)
                 continue
 
             if move.picking_id.picking_type_id == routing_rule.picking_type_id:
                 # already correct
+                move_ids_to_assign_nonrelocated.append(move.id)
                 continue
 
             # we expect all the lines to go to the same destination for
@@ -259,9 +264,12 @@ class StockMove(models.Model):
                 # The destination of the move, as a parent of the destination
                 # of the routing, goes to the correct place, but is not precise
                 # enough: set the new destination to match the rule's one.
-                # The source of the dest. move will be changed to match it,
-                # which may reapply a new routing rule on the dest. move.
-                move._routing_pull_switch_destination(routing_rule)
+                move.location_dest_id = routing_rule.location_dest_id
+                # After the reservation, the source of the dest. move will be
+                # changed to match it, which may reapply a new routing rule on
+                # the dest. move.
+                next_moves_to_update |= move.move_dest_ids.filtered(
+                    lambda r: r.state == "waiting")
 
             elif not dest_location.is_sublocation_of(rule_location):
                 # The destination of the move is unrelated (nor identical, nor
@@ -316,41 +324,50 @@ class StockMove(models.Model):
         # by another move, sort the moves by their source location, from the
         # most precise to the least precise. The order of the move ids within
         # one location is preserved.
+        #
+        # The non routed moves are assigned at last. This allows compatibility
+        # with the module stock_move_source_relocate and ensures we call
+        # _action_assign on the complete set of moves
         sorted_locations = sorted(
             move_ids_to_assign_per_location, key=lambda l: l.parent_path, reverse=True
         )
         to_assign_ids = []
         for location in sorted_locations:
             to_assign_ids += move_ids_to_assign_per_location[location]
+        to_assign_ids += move_ids_to_assign_nonrelocated
 
         self.browse(to_assign_ids).with_context(
             exclude_apply_dynamic_routing=True
         )._action_assign()
 
+        # Update the destination moves. This might trigger a new routing on the
+        # destination move.
+        next_moves_to_update._routing_pull_switch_source()
+
         pickings_to_check_for_emptiness._dynamic_routing_handle_empty()
 
-    def _routing_pull_switch_destination(self, routing_rule):
-        """Switch the destination of the move in place
+    def _routing_pull_switch_source(self):
+        """Switch the source location of the move in place.
 
-        In this case, do not insert a new move but switch the destination
-        of the current move. The destination move source location is changed
-        as well, which might trigger a new routing on the destination move.
+        When the destination of the next move has changed, we do not insert a
+        new move but switch the source location of the current move.  This
+        might trigger a new routing on the destination move.
         """
-        self.location_dest_id = routing_rule.location_dest_id
-        next_move = self.move_dest_ids.filtered(lambda r: r.state == "waiting")
-        # FIXME what should happen if we have > 1 move? What would
-        # be the use case?
-        if next_move and len(next_move) == 1:
-            split_move = self.browse(next_move._split(self.product_qty))
-            if split_move != next_move:
-                # No split occurs if the quantity was the same.
-                # But if it did split, detach it from the move on which
-                # we have a different routing
-                next_move.move_orig_ids -= self
-                split_move.move_orig_ids = self
-            next_move = split_move
-
-        next_move.location_id = routing_rule.location_dest_id
+        for move in self:
+            origmoves_by_location = {}
+            for orig_move in move.move_orig_ids:
+                origmoves_by_location.setdefault(orig_move.location_dest_id, move.browse())
+                origmoves_by_location[orig_move.location_dest_id] |= orig_move
+            for location_id, orig_moves in origmoves_by_location.items():
+                qty = sum(orig_moves.mapped('product_qty'))
+                split_move = self.browse(move._split(qty))
+                if split_move != move:
+                    # No split occurs if the quantity was the same.
+                    # But if it did split, detach it from the move on which
+                    # we have a different routing
+                    move.move_orig_ids -= orig_moves
+                    split_move.move_orig_ids = orig_moves
+                split_move.location_id = location_id
 
     def _routing_pull_insert_move(self, routing_rule, picking_type, destination):
         """Add a move after the current move to reach the destination
