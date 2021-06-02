@@ -2,7 +2,7 @@
 # Copyright 2021 Jacques-Etienne Baudoux (BCIM) <je@bcim.be>
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl)
 import uuid
-from collections import defaultdict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 
 from psycopg2 import sql
 
@@ -355,13 +355,13 @@ class StockMove(models.Model):
         might trigger a new routing on the destination move.
         """
         for move in self:
-            origmoves_by_location = {}
+            origmoves_by_location = OrderedDict()
             for orig_move in move.move_orig_ids:
                 origmoves_by_location.setdefault(
                     orig_move.location_dest_id, move.browse()
                 )
                 origmoves_by_location[orig_move.location_dest_id] |= orig_move
-            for location_id, orig_moves in origmoves_by_location.items():
+            for location_id, orig_moves in reversed(origmoves_by_location.items()):
                 qty = sum(orig_moves.mapped("product_qty"))
                 split_move = self.browse(move._split(qty))
                 if split_move != move:

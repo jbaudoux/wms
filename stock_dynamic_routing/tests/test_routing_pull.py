@@ -785,6 +785,7 @@ class TestRoutingPull(TestRoutingPullCommon):
             move_a | move_b | move_c | move_d,
             [
                 {
+                    "product_qty": 4,
                     "move_orig_ids": [],
                     "move_dest_ids": move_b.ids,
                     "state": "confirmed",
@@ -792,6 +793,7 @@ class TestRoutingPull(TestRoutingPullCommon):
                     "location_dest_id": self.wh.wh_output_stock_loc_id.id,
                 },
                 {
+                    "product_qty": 4,
                     "move_orig_ids": move_a.ids,
                     "move_dest_ids": [],
                     "state": "waiting",
@@ -799,6 +801,7 @@ class TestRoutingPull(TestRoutingPullCommon):
                     "location_dest_id": self.customer_loc.id,
                 },
                 {
+                    "product_qty": 6,
                     "move_orig_ids": [],
                     "move_dest_ids": move_d.ids,
                     "state": "assigned",
@@ -806,6 +809,7 @@ class TestRoutingPull(TestRoutingPullCommon):
                     "location_dest_id": area1.id,
                 },
                 {
+                    "product_qty": 6,
                     "move_orig_ids": move_c.ids,
                     "move_dest_ids": [],
                     "state": "waiting",
