@@ -269,7 +269,8 @@ class StockMove(models.Model):
                 # changed to match it, which may reapply a new routing rule on
                 # the dest. move.
                 next_moves_to_update |= move.move_dest_ids.filtered(
-                    lambda r: r.state == "waiting")
+                    lambda r: r.state == "waiting"
+                )
 
             elif not dest_location.is_sublocation_of(rule_location):
                 # The destination of the move is unrelated (nor identical, nor
@@ -356,10 +357,12 @@ class StockMove(models.Model):
         for move in self:
             origmoves_by_location = {}
             for orig_move in move.move_orig_ids:
-                origmoves_by_location.setdefault(orig_move.location_dest_id, move.browse())
+                origmoves_by_location.setdefault(
+                    orig_move.location_dest_id, move.browse()
+                )
                 origmoves_by_location[orig_move.location_dest_id] |= orig_move
             for location_id, orig_moves in origmoves_by_location.items():
-                qty = sum(orig_moves.mapped('product_qty'))
+                qty = sum(orig_moves.mapped("product_qty"))
                 split_move = self.browse(move._split(qty))
                 if split_move != move:
                     # No split occurs if the quantity was the same.
