@@ -1,9 +1,6 @@
 from odoo.addons.stock_dynamic_routing.tests.test_routing_pull import (
     TestRoutingPullCommon,
 )
-from odoo.addons.stock_move_source_relocate.tests.test_source_relocate import (
-    SourceRelocateCommon,
-)
 
 
 class TestRoutingAndSourceRelocate(TestRoutingPullCommon):
