@@ -36,6 +36,7 @@ Vue.component("searchbar", {
             type: String,
             default: "text",
         },
+        input_label: String,
         input_placeholder: String,
         input_data_type: String,
         reset_on_submit: {
@@ -43,20 +44,20 @@ Vue.component("searchbar", {
             default: true,
         },
     },
-    mounted: function() {
+    mounted: function () {
         // As the inputMode is set to none when inserted in the DOM, we need to force the focus
         if (this.autofocus) this.$refs.searchbar.focus();
     },
     methods: {
-        show_virtual_keyboard: function(elem) {
+        show_virtual_keyboard: function (elem) {
             elem.inputMode = this.input_inputmode;
             elem.classList.add("searchbar-keyboard");
         },
-        hide_virtual_keyboard: function(elem) {
+        hide_virtual_keyboard: function (elem) {
             elem.inputMode = "none";
             elem.classList.remove("searchbar-keyboard");
         },
-        search: function(e) {
+        search: function (e) {
             e.preventDefault();
             // Talk to parent
             this.$emit("found", {
@@ -69,17 +70,17 @@ Vue.component("searchbar", {
             this.entered = "";
             this.hide_virtual_keyboard(this.$refs.searchbar);
         },
-        onclick: function(e) {
+        onclick: function (e) {
             if (e.target.inputMode == "none") {
                 this.show_virtual_keyboard(e.target);
             } else {
                 this.hide_virtual_keyboard(e.target);
             }
         },
-        onfocus: function(e) {
+        onfocus: function (e) {
             e.target.classList.add("searchbar-scan");
         },
-        onblur: function(e) {
+        onblur: function (e) {
             if (this.forcefocus) return e.target.click();
             e.target.classList.remove("searchbar-scan");
         },
@@ -89,10 +90,10 @@ Vue.component("searchbar", {
   <v-form
       v-on:submit="search"
       :data-type="input_data_type"
-      ref="form"
       class="searchform"
       >
-    <div class="v-input v-text-field">
+    <div class="searchbar v-input v-text-field">
+      <label class="v-label" v-if="input_label">{{ input_label }}</label>
       <input
         ref="searchbar"
         required v-model="entered"
@@ -104,7 +105,6 @@ Vue.component("searchbar", {
         @focus="onfocus"
         @blur="onblur"
         @click="onclick"
-        class="searchbar"
         />
       </div>
   </v-form>
