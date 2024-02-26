@@ -1,5 +1,7 @@
 # Copyright 2023 ACSONE SA/NV
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
+from datetime import timedelta
+
 from freezegun import freeze_time
 
 from odoo import fields
@@ -7,9 +9,11 @@ from odoo import fields
 from odoo.addons.queue_job.job import Job
 from odoo.addons.stock_release_channel.tests.common import ChannelReleaseCase
 
+FROZEN_TIME = fields.Date.today() + timedelta(days=1)
+
 
 class ReleaseChannelEndDateCase(ChannelReleaseCase):
-    @freeze_time("2023-01-27")
+    @freeze_time(FROZEN_TIME)
     def test_channel_end_date(self):
         # Set the end time
         self.channel.process_end_time = 23.0
@@ -19,11 +23,13 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         # Wake up the channel to set the process end date
         self.channel.action_wake_up()
         self.assertEqual(
-            "2023-01-27 23:00:00",
-            fields.Datetime.to_string(self.channel.process_end_date),
+            fields.Datetime.now().replace(hour=23),
+            # "2023-01-27 23:00:00",
+            self.channel.process_end_date
+            # fields.Datetime.to_string(self.channel.process_end_date),
         )
 
-    @freeze_time("2023-01-27 10:00:00")
+    @freeze_time(fields.Datetime.to_datetime(FROZEN_TIME).replace(hour=10))
     def test_channel_end_date_tomorrow(self):
         # Set the end time
         self.channel.process_end_time = 1.0
@@ -34,11 +40,11 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         # Current time is 10:00:00
         self.channel.action_wake_up()
         self.assertEqual(
-            "2023-01-28 01:00:00",
-            fields.Datetime.to_string(self.channel.process_end_date),
+            (fields.Datetime.now() + timedelta(days=1)).replace(hour=1),
+            self.channel.process_end_date,
         )
 
-    @freeze_time("2023-01-27 10:00:00")
+    @freeze_time(fields.Datetime.to_datetime(FROZEN_TIME).replace(hour=10))
     def test_channel_end_date_manual(self):
         # Set the end time
         self.channel.process_end_time = 1.0
@@ -49,18 +55,19 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         # Current time is 10:00:00
         self.channel.action_wake_up()
         self.assertEqual(
-            "2023-01-28 01:00:00",
-            fields.Datetime.to_string(self.channel.process_end_date),
+            (fields.Datetime.now() + timedelta(days=1)).replace(hour=1),
+            self.channel.process_end_date,
         )
 
         # We force the end date
-        self.channel.process_end_date = "2023-01-27 23:30:00"
+        process_end_date = fields.Datetime.now().replace(hour=23, minute=30)
+        self.channel.process_end_date = process_end_date
         self.assertEqual(
-            "2023-01-27 23:30:00",
-            fields.Datetime.to_string(self.channel.process_end_date),
+            process_end_date,
+            self.channel.process_end_date,
         )
 
-    @freeze_time("2023-01-27 10:00:00")
+    @freeze_time(fields.Datetime.to_datetime(FROZEN_TIME).replace(hour=10))
     def test_picking_scheduled_date(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "stock_release_channel_process_end_time.stock_release_use_channel_end_date",
@@ -84,7 +91,7 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         # Check the scheduled date is corresponding to the one on channel
         for picking in pickings:
             self.assertEqual(
-                "2023-01-27 23:00:00", fields.Datetime.to_string(picking.scheduled_date)
+                fields.Datetime.now().replace(hour=23), picking.scheduled_date
             )
         # at this stage, the pickings are not ready to be released as the
         # qty available is not enough
@@ -96,7 +103,9 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         self.assertEqual(pickings, self.channel._get_pickings_to_release())
         # if the scheduled date of one picking is changed to be after the
         # process end date, it should not be releasable anymore
-        pickings[0].scheduled_date = fields.Datetime.from_string("2023-01-28 00:00:00")
+        pickings[0].scheduled_date = (
+            fields.Datetime.now() + timedelta(days=1)
+        ).replace(hour=0)
         self.assertEqual(pickings[1:], self.channel._get_pickings_to_release())
 
     def test_can_edit_time(self):
@@ -108,7 +117,7 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         user.groups_id |= self.env.ref("stock.group_stock_manager")
         self.assertTrue(self.channel.with_user(user).process_end_time_can_edit)
 
-    @freeze_time("2023-01-27")
+    @freeze_time(FROZEN_TIME)
     def test_channel_end_date_warehouse_timezone(self):
         # Set a warehouse with an adress and a timezone on channel
         self.channel.warehouse_id = self.env.ref("stock.warehouse0")
@@ -121,11 +130,11 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         # Wake up the channel to set the process end date
         self.channel.action_wake_up()
         self.assertEqual(
-            "2023-01-27 22:00:00",
-            fields.Datetime.to_string(self.channel.process_end_date),
+            fields.Datetime.now().replace(hour=22),
+            self.channel.process_end_date,
         )
 
-    @freeze_time("2023-01-27")
+    @freeze_time(FROZEN_TIME)
     def test_channel_end_date_company_timezone(self):
         # Set a warehouse with an adress and a timezone on channel
         self.assertFalse(self.channel.warehouse_id)
@@ -138,6 +147,6 @@ class ReleaseChannelEndDateCase(ChannelReleaseCase):
         # Wake up the channel to set the process end date
         self.channel.action_wake_up()
         self.assertEqual(
-            "2023-01-27 22:00:00",
-            fields.Datetime.to_string(self.channel.process_end_date),
+            fields.Datetime.now().replace(hour=22),
+            self.channel.process_end_date,
         )
